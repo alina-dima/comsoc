@@ -6,7 +6,7 @@ def get_lowest_pl_alt(orders, order_count, alternatives):
 
     for order_idx, order in enumerate(orders):
         for item in order[0]:
-            pl_scores[item] += order_count[order_idx]
+            pl_scores[item] += (1 / len(order[0])) * order_count[order_idx]
 
     min_votes = min(pl_scores.values())
     return [key for key in pl_scores if pl_scores[key] == min_votes]
