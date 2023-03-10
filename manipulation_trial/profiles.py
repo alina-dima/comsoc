@@ -28,7 +28,7 @@ class Profile:
 
         for vote in self.votes:
             for preference in vote.order[0]:
-                pl_scores[preference] += vote.count
+                pl_scores[preference] += vote.count / len(vote.order[0])
 
         min_votes = min(pl_scores.values())
         return [key for key in pl_scores if pl_scores[key] == min_votes]

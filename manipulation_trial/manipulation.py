@@ -15,8 +15,8 @@ if __name__ == '__main__':
 
     number_of_manipulations = 0
     for vote in profile.votes:
-        if vote.prefers_alternative(2, 8):
-            if random.random() < 0.7:
+        if vote.prefers_alternative(3, 8):
+            if random.random() < 0.8:
                 vote.set_manipulative_order(manipulation_order1)
             else:
                 vote.set_manipulative_order(manipulation_order2)
