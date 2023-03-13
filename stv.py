@@ -2,7 +2,7 @@ from preflibtools.instances import OrdinalInstance
 
 
 def get_lowest_pl_alt(orders, order_count, alternatives):
-    """The function returns the alternative with the lowest plurality score."""
+    '''The function returns the alternative with the lowest plurality score.'''
     pl_scores = {key: 0 for key in alternatives}
 
     for order_idx, order in enumerate(orders):
@@ -14,7 +14,7 @@ def get_lowest_pl_alt(orders, order_count, alternatives):
 
 
 def remove_from_p(orders, order_count, alternative):
-    """The function removes an alternative from a profile."""
+    '''The function removes an alternative from a profile.'''
     new_orders = []
     new_order_count = []
     for order_idx, order in enumerate(orders):
@@ -31,7 +31,7 @@ def remove_from_p(orders, order_count, alternative):
 
 
 def stv(orders, order_count, alternatives):
-    """The function returns the STV winner given a profile."""
+    '''The function returns the STV winner given a profile.'''
     prev = alternatives.copy()
     while len(alternatives):
         lowest_pl_alt = get_lowest_pl_alt(orders, order_count, alternatives)
@@ -43,17 +43,18 @@ def stv(orders, order_count, alternatives):
 
 
 def get_winner():
-    """The function returns the STV winner of the Aspen 2009 elections."""
+    '''The function returns the STV winner of the Aspen 2009 elections.'''
     profile = OrdinalInstance()
-    profile.parse_file("aspen_2009_data.toi")
+    profile.parse_file('aspen_2009_data.toi')
 
     orders = [[list(items) for items in order] for order in profile.orders]
     order_count = [profile.multiplicity[order] for order in profile.orders]
     alternatives = [alt + 1 for alt in range(profile.num_alternatives)]
 
-    for winner in stv(orders, order_count, alternatives):
-        print(f"{winner}: {profile.alternatives_name[winner]}")
+    winners = stv(orders, order_count, alternatives)
+    print("Winner(s):", [str(winner) + ": " + profile.alternatives_name[winner]\
+                                 for winner in winners], "\n")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     get_winner()
