@@ -37,15 +37,15 @@ def stv(orders, order_count, alternatives):
         lowest_pl_alt = get_lowest_pl_alt(orders, order_count, alternatives)
         prev = alternatives.copy()
         for alt in lowest_pl_alt:
-            print(f"Removing {alt}")
             alternatives.remove(alt)
             orders, order_count = remove_from_p(orders, order_count, alt)
     return prev
 
 
 def get_winner():
+    """The function returns the STV winner of the Aspen 2009 elections."""
     profile = OrdinalInstance()
-    profile.parse_url("https://www.preflib.org/static/data/aspen/00016-00000001.toi")
+    profile.parse_file("aspen_2009_data.toi")
 
     orders = [[list(items) for items in order] for order in profile.orders]
     order_count = [profile.multiplicity[order] for order in profile.orders]
@@ -57,4 +57,3 @@ def get_winner():
 
 if __name__ == "__main__":
     get_winner()
-
