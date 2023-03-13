@@ -1,8 +1,9 @@
 from preflibtools.instances import OrdinalInstance
 import itertools
-from collections import Counter
 from tqdm import tqdm
 import time
+from copy import deepcopy
+
 
 def get_lowest_pl_alt(orders, order_count, alternatives):
     '''The function returns the alternative with the lowest plurality score.'''
@@ -10,9 +11,8 @@ def get_lowest_pl_alt(orders, order_count, alternatives):
 
     for order_idx, order in enumerate(orders):
         for item in order[0]:
-            pl_scores[item] += order_count[order_idx]
+            pl_scores[item] += (1 / len(order[0])) * order_count[order_idx]
 
-    # print("plurality scores:", pl_scores)
     min_votes = min(pl_scores.values())
     return [key for key in pl_scores if pl_scores[key] == min_votes]
 
@@ -47,102 +47,122 @@ def stv(orders, order_count, alternatives):
 
 
 def get_counts(orders):
-    c = Counter(orders)
-    return list(c.keys()), list(c.values())
+    '''Returns the counts.'''
+    counts = {}
+    for order in orders:
+        key = tuple([tuple(item) for item in order])
+        if key in counts:
+            counts[key] += 1
+        else:
+            counts[key] = 1
+    keys_list = [[list(items) for items in order] for order in list(counts.keys())]
+    return keys_list, list(counts.values())
 
 
-# for all possible combinations of voters (that did not vote for 8 previously) check all possible permutations of orders
-def manipulate(orders, alternatives, winner,  not_winner_idxs):
-    
+def all_v_pref_nw(new_winner, winner, orders, voters):
+    '''The function returns whether all manipulated voters
+       prefer the new winner to the original winner.'''
+    prefer_nw = True
+    for voter in voters:
+        seen_new_winner = False
+        for option in orders[voter]:
+            if option == new_winner:
+                seen_new_winner = True
+            elif option == winner and not seen_new_winner:
+                prefer_nw = False
+                break
 
-    # generate all possible commbinations of voters with any length
-    for v in tqdm(range(1, len(not_winner_idxs) + 1)):
-        for voters in itertools.combinations(not_winner_idxs, v):
-            # print(voters)
-            
+        if not prefer_nw:
+            break
+        if not seen_new_winner:
+            prefer_nw = False
+            break
+    return prefer_nw
+
+
+def manipulate(orders, alternatives, winner, not_winner_idxs):
+    '''Checks all possible permutations of orders for all possible
+       combinations of voters (that did not vote for 8 previously).'''
+
+    # Generate all possible commbinations of voters with any length
+    print("Manipulating...")
+    for voters_len in tqdm(range(1, len(not_winner_idxs) + 1)):
+        for voters in itertools.combinations(not_winner_idxs, voters_len):
             # Generate all possible orders with any length
-            for r in range(1, len(alternatives) + 1):
-                for permutation in itertools.permutations(alternatives, r):
-                    # print(permutation)
-                    new_orders = orders.copy()
-                    alternatives_copy = alternatives.copy()
+            for perm_len in range(1, len(alternatives) + 1):
+                for permutation in itertools.permutations(alternatives, perm_len):
+                    old_ballots = []
+                    new_orders = deepcopy(orders)
+                    alternatives_copy = deepcopy(alternatives)
                     for voter in voters:
-                        # print(voter[0])
-                        new_orders[voter] = permutation # change the order of voters to permutation
-                        
+                        # change the order of voters to permutation
+                        new_orders[voter] = [[item] for item in list(permutation)]
+                        old_ballots.append(orders[voter])
 
-                    new_orders_frq, order_counts = get_counts(new_orders)
-                    # print(order_counts)
+                    new_orders, order_counts = get_counts(new_orders)
 
-                    new_orders_list = []
-                    for order in new_orders_frq:
-                        aux = []
-                        for item in order:
-                            aux.append([item])
-                        new_orders_list.append(aux)
+                    new_winner = stv(new_orders, order_counts, alternatives_copy)
 
-                    # print("new order: ", new_orders_list)
-                    # print("new order counts: ", order_counts)
-                    new_winner = stv(new_orders_list, order_counts, alternatives_copy)
-                    # print("winner", new_winner)
-                    
-                    if new_winner != winner:
-                        print(new_winner)
-                        return (new_winner, permutation, v)
+                    if all_v_pref_nw(new_winner, winner, orders, voters) and new_winner != winner:
+                        perm_as_list = [[item] for item in list(permutation)]
+                        return (new_winner, perm_as_list, voters_len, old_ballots)
+    return None
 
-    print("Cannot be manipulated")
-    return
 
+def flatten_orders(orders, order_count):
+    '''Repeats all ballots based on the order counts.'''
+    all_orders = [[ballot] * count for ballot, count in zip(orders, order_count)]
+    all_orders2 = []
+    for orders in all_orders:
+        all_orders2.extend(orders)
+    return all_orders2
+
+
+def get_manipulable_idxs(all_orders, winners):
+    '''Returns the indexes of the voters that did not place the original winner(s)
+       as their top preference.'''
+    not_winner_idxs = []
+    for order in all_orders:
+        win_in_order = False
+        for winner in winners:
+            if winner in order[0]:
+                win_in_order = True
+                break
+        if not win_in_order:
+            not_winner_idxs.append(all_orders.index(order))
+    return not_winner_idxs
 
 
 def main():
+    '''Computes original STV winner(s) and tries to manipulate the elections.'''
     profile = OrdinalInstance()
-    # profile.parse_url("https://www.preflib.org/static/data/aspen/00016-00000001.toi")
     profile.parse_file("aspen_subset_3.toi")
 
     orders = [[list(items) for items in order] for order in profile.orders]
     order_count = [profile.multiplicity[order] for order in profile.orders]
-    orders2 = [[items[0] for items in order] for order in profile.orders]
+    alternatives = list(profile.alternatives_name.keys())
 
-    all_orders = [[tuple(ballot)] * count for ballot, count in zip(orders2, order_count)] # repeat all ballots based on the order counts
-    all_orders2 = []
-    not_winner_idxs = []
-    for o in all_orders:
-        all_orders2.extend(o) 
+    # Compute original winners
+    winners = stv(deepcopy(orders), deepcopy(order_count), deepcopy(alternatives))
+    print("Original winner(s):", [str(winner) + ": " + profile.alternatives_name[winner]\
+                                 for winner in winners], "\n")
 
-    winner = 3
-    not_winner_idxs = []
-    for o in all_orders2:
-        if winner not in o:
-            not_winner_idxs.append(all_orders2.index(o)) # the indexes of the voters who did not place 8 among their preferences
-
-    
-    print(len(not_winner_idxs))
-    # exit()
-    
-    alternatives = [6, 7, 8, 9]
-    print(alternatives)
-    alternatives_copy = alternatives.copy()
-
-
-    winners = stv(orders, order_count, alternatives)
-    print(winners)
-    # exit()
-    
-    # for winner in winners:
-    #     print(f"{winner}: {profile.alternatives_name[winner]}")
-
+    # Start manipulation
     start = time.time()
-    (new_winner, permutation, v) = manipulate(all_orders2, alternatives_copy, winners,  not_winner_idxs)
-    print("--- %s seconds ---" % (time.time() - start))
-
-    print("new_winner:", new_winner)
-    print("permutation", permutation)
-    print("voters", v)
-
-    # for winner in new_winner:
-    #     print(f"{winner}: {profile.alternatives_name[winner]}")
-    
+    try:
+        all_orders = flatten_orders(orders, order_count)
+        not_winner_idxs = get_manipulable_idxs(all_orders, winners)
+        (new_winner, perm, voters, old_ballots) = manipulate(all_orders, deepcopy(alternatives),\
+                                                             winners, not_winner_idxs)
+        print("The profile is manipulable with:")
+        print("\t- new_winner(s):", [str(winner) + ": " + profile.alternatives_name[winner]\
+                                     for winner in new_winner])
+        print("\t- permutation:", perm)
+        print("\t- number of voters:", voters)
+        print("\t- old ballots: ", old_ballots)
+    except TypeError:
+        print("The profile cannot be manipulated.")
+    print(f"Manipulation runtime: --- {time.time() - start} seconds ---")
 
 
 if __name__ == "__main__":
